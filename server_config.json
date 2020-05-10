@@ -1,0 +1,12 @@
+{
+    "server" : {
+        "host": "0.0.0.0",
+        "port": "1428"
+    },
+    "mysql" : {
+        "mysqlhost": "127.0.0.1",
+        "mysqlport": "3306",
+        "username": "hlt_user",
+        "password": "HLT_Server"
+    }
+}
