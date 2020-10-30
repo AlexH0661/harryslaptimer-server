@@ -20,7 +20,7 @@ class postgresql_connection(threading.Thread):
         logging.info('Attempting to connect {0}@{1}:{2}'.format(self._username, self._postgresqlhost, self._postgresqlport))
         connection = postgresql.open(f'pq://{self._username}:{self._password}@{self._postgresqlhost}:{self._postgresqlport}/hlt_server')
         try:
-            if connection.is_connected():
+            if connection.version():
                 db_Info = connection.get_server_info()
                 logging.info("Connected to postgresql Server version {0}".format(db_Info))
                 cursor = connection.cursor()

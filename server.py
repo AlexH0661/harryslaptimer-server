@@ -56,8 +56,21 @@ class ClientThread(threading.Thread):
         while True:
             data = self.csocket.recv(2048)
             if data != b'':
-                logging.debug(data)
-            msg = data.decode('utf-16')
+                creatorID = data[0:3]
+                sUID = data[4:7]
+                msgsize = data[8:11]
+                msgType = data[12:15]
+                try:
+                    uDID = data[16:31]
+                    header_type = 'v2'
+                    msgBody = data[32:]
+                    logging.debug(f'Creator ID: {creatorID} sUID: {sUID} size: {msgsize} msgType: {msgType} uDID: {uDID}')
+                except:
+                    header_type = 'v1'
+                    msgBody = data[16:]
+                    logging.debug(f'Creator ID: {creatorID} sUID: {sUID} size: {msgsize} msgType: {msgType}')
+                logging.debug(f'Header Type: {header_type}')
+            msg = msgBody.decode('utf-8')
             if msg != '':
                 logging.debug(msg)
             #if str(msg) == 'exit':

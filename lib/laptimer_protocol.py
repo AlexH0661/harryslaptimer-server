@@ -10,9 +10,29 @@ class laptimer():
     DEFAULTHALLOFFAMELIMIT = 200 # Number of laps used in MessageHallOfFame*
     MAXLIMITRESULTSETS = 2000 # Hard number applied to all hall of fame queries
 
-    def __init__(self, _ip, _port):
+    def __init__(self, _ip, _port, data):
         self.ip = _ip
         self.port = _port
+        self.data = data
+
+    def run (self):
+        self.creatorID = self.data[0:3]
+        self.sUID = self.data[4:7]
+        self.msgsize = self.data[8:11]
+        self.msgType = self.data[12:15]
+        try:
+            self.uDID = self.data[16:31]
+            self.header_type = 'v2'
+            self.msgBody = self.data[32:]
+            logging.debug(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType} uDID: {self.uDID}')
+        except:
+            self.header_type = 'v1'
+            self.msgBody = self.data[16:]
+            logging.debug(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType}')
+        logging.debug(f'Header Type: {self.header_type}')
+        self.msg = self.msgBody.decode('utf-8')
+        if self.msg != '':
+            logging.debug(self.msg)
     '''
     @staticmethod
     def GPSMessageType():
