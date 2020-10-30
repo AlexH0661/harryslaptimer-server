@@ -1,1 +1,1 @@
-This is the Harry's Laptimer Project
+*This is the Harry's Laptimer Project*
