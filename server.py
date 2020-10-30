@@ -14,7 +14,7 @@ import sys
 #| Required external libraries    |
 #+--------------------------------+
 from lib.laptimer_protocol import laptimer
-from lib.sql_handler import mysql_connection
+from lib.sql_handler import postgresql_connection
 
 
 #+--------------------------------------------------------------+
@@ -102,14 +102,14 @@ def main():
             content = json.load(fp)
         _host = content['server']['host']
         _port = content['server']['port']
-        _mysqlhost = content['mysql']['mysqlhost']
-        _mysqlport = content['mysql']['mysqlport']
-        _username = content['mysql']['username']
-        _password = content['mysql']['password']
+        _postgresqlhost = content['postgresql']['postgresqlhost']
+        _postgresqlport = content['postgresql']['postgresqlport']
+        _username = content['postgresql']['username']
+        _password = content['postgresql']['password']
         while True:
             user_input = input('To start the server [ENTER] or press [Q] and then press [ENTER] to quit: ')
             if user_input == "":
-                newthread = mysql_connection(_mysqlhost, _mysqlport, _username, _password)
+                newthread = postgresql_connection(_postgresqlhost, _postgresqlport, _username, _password)
                 newthread.daemon = True
                 newthread.start()
                 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
