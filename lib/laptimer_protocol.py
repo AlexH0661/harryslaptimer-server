@@ -1,74 +1,123 @@
+# Native Libraries
 import json
 import threading
 import socket
 import logging
+import struct
+import binascii
+import codecs
+import array
 
-class laptimer():
+# Third Party Libraries
+import numpy as np
+
+class message_handler():
     _timeout = 5
     NUMMESSAGETYPES = 25
     NUMLASTLAPTIMES = 10 # Number of laps used in MessageTimesLapped
     DEFAULTHALLOFFAMELIMIT = 200 # Number of laps used in MessageHallOfFame*
     MAXLIMITRESULTSETS = 2000 # Hard number applied to all hall of fame queries
 
-    def __init__(self, _ip, _port, data):
-        self.ip = _ip
-        self.port = _port
-        self.data = data
-
-    def run (self):
-        self.creatorID = self.data[0:3]
-        self.sUID = self.data[4:7]
-        self.msgsize = self.data[8:11]
-        self.msgType = self.data[12:15]
+    def __init__(self, msg):
+        self.data = binascii.hexlify(bytearray(msg))
         try:
-            self.uDID = self.data[16:31]
+            self.headers = struct.unpack("> 8s  8s  8s  8s 32s 16s 16s 8s", self.data[0:128])
+            self.msg_length = len(self.data) - 128
+            print(f'Message Length: {self.msg_length}')
+            self.msg = self.data[self.msg_length:]
+            print(self.msg)
             self.header_type = 'v2'
-            self.msgBody = self.data[32:]
-            logging.debug(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType} uDID: {self.uDID}')
         except:
+            self.headers = struct.unpack(f"> 8s  8s  8s  8s", self.data[0:32])
+            self.msg_length = len(self.data) - 32
+            print(f'Message Length: {self.msg_length}')
+            self.msg = self.data[self.msg_length:]
+            print(self.msg)
             self.header_type = 'v1'
-            self.msgBody = self.data[16:]
+            
+        print(f'Headers: {self.headers}')
+        logging.debug(f'Headers: {self.headers}')
+
+        #print(f'MessageL {self.msg}')
+        #logging.debug(f'MessageL {self.msg}')
+
+        self.handleMessage()
+        #self.closeClient()
+
+    def handleMessage (self):
+        self.creatorID = self.swapEndianness(self.headers[0], '<', 's') #codecs.decode(self.headers[0], "hex")[::-1]
+        self.sUID = self.swapEndianness(self.headers[1], '<', 'c')
+        self.msgsize =  self.swapEndianness(self.headers[2], '<', 'c')
+        self.msgType =  self.swapEndianness(self.headers[3], '<', 'c')
+
+        if self.header_type == 'v2':
+            self.uDID = self.swapEndianness(self.headers[4], '<', 'c')
+            print(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType} uDID: {self.uDID}')
+            logging.debug(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType} uDID: {self.uDID}')
+
+        elif self.header_type == 'v1':
+            print(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType}')
             logging.debug(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType}')
-        logging.debug(f'Header Type: {self.header_type}')
-        self.msg = self.msgBody.decode('utf-8')
-        if self.msg != '':
-            logging.debug(self.msg)
-    '''
-    @staticmethod
-    def GPSMessageType():
-        MessageCurrentPosition = 0 # Client > Server
-        MessageTimeLapped = 1 # Deprecated, Client > Server
-        MessageTimeLappedCertified = 9 # Deprecated, Client > Server, replaced MessageTimeLapped
-        MessageTimeLappedCertifiedV2 = 12 # Client > Server, replaced MessageTimeLappedCertified
-        MessageDeleteTimeLapped = 24 # Client > Server
 
-        MessageRegisterForTrack = 2 # Client > Server
-        MessagePositions = 3 # Server > Client (continous replies to MessageRegisterForTrack)
-        MessageTimesLapped = 4 # Server > Client (continous replies to MessageRegisterForTrack)
-        MessageServerStatus = 5 # Server > Client (continous replies to MessageRegisterForTrack)
-        MessageAlertOnTrack = 6 # Client > Server (submitting alert) AND
-        # Server > Client (broadcast by server on receive)
+        self.GPSMessageType()
 
-        MessageRequestHallOfFame = 7 # Deprecated, Client > Server
-        MessageHallOfFame = 8 # Deprecated, Server > Client (reply to MessageRequestHallOfFame)
-        MessageRequestHallOfFameCertified = 10 # deprecated, Client > Server, replaced MessageRequestHallOfFame
-        MessageHallOfFameCertified = 11 # Server > Client
-        MessageRequestHallOfFameCertifiedV2 = 23 # Client > Server, replaced MessageRequestHallOfFameCertified
+        #self.msg = self.msgBody
+        #if self.msg != '':
+            #logging.debug(self.msg)
 
-        MessageRequestTracks = 13 # Client > Server
-        MessageTracks = 14 # Server > Client (reply to MessageRequestTracks)
+    def swapEndianness(self, swap_data, endianess, mask):
+        if endianess == '<':
+            other_endianness = '>'
+        else:
+            other_endianness = '<'
+        len_data = len(swap_data)
 
-        MessageRequestTrackShape = 15 # Client > Server
-        MessageTrackShape = 16 # Server > Client (reply to MessageRequestTrackShape)
+        print(f'Data: {swap_data} Endianness: {endianess} Other Endianness: {other_endianness} Data Length: {len_data}')
 
-        MessageSubmitChallenge = 17 # Client > Server
+        self.tmp = struct.pack(f'{endianess}{mask}', swap_data)
+        print(self.tmp)
+        self.original = struct.unpack(f'{other_endianness}{mask}', self.tmp)
+        print(f'Original: {self.original}')
+        return self.original
 
-        MessageRequestChallenges = 18 # Client > Server
-        MessageChallenges = 19 # Server > Client (reply to MessageRequestChallenges)
+    def closeClient(self):
+        print('Closing connection')
+        exit(0)
 
-        MessageRequestChallenge = 20 # Client > Server
-        MessageChallenge = 21 # Server > Client (reply to MessageRequestCallenge)
-        MessageDeleteChallenge = 22 # Client > Server
+    def GPSMessageType(self):
+        switcher = {
+            0: "MessageCurrentPosition",
+            1: "MessageTimeLapped",
+            2: "MessageRegisterForTrack",
+            3: "MessagePositions",
+            4: "MessageTimesLapped",
+            5: "MessageServerStatus",
+            6: "MessageAlertOnTrack",
+            7: "MessageRequestHallOfFame",
+            8: "MessageHallOfFame",
+            9: "MessageTimeLappedCertified",
+            10: "MessageRequestHallOfFameCertified",
+            11: "MessageHallOfFameCertified",
+            12: "MessageTimeLappedCertifiedV2",
+            13: "MessageRequestTracks",
+            14: "MessageTracks",
+            15: "MessageRequestTrackShape",
+            16: "MessageTrackShape",
+            17: "MessageSubmitChallenge",
+            18: "MessageRequestChallenges",
+            19: "MessageChallenges",
+            20: "MessageRequestChallenge",
+            21: "MessageChallenge",
+            22: "MessageDeleteChallenge",
+            23: "MessageRequestHallOfFameCertifiedV2",
+            24: "MessageDeleteTimeLapped"
+        }
+
+        return switcher.get(self.msgType, lambda: "Invalid Message Type")
+
+    def MessageRegisterForTrack(self):
+        self.trackID: int = self.swapEndianness(self.msg, '<', 'c')
+        print(f'User: {self.sUID} TrackID: {self.trackID}')
 
     @staticmethod
     def Coordinate2D():
@@ -123,4 +172,3 @@ class laptimer():
         listed: bool = False
         fullnameAndVehicle: chr = "" # Variable size, fullnameAndVehicle are two zero
         # terminated c strings (both UTF8)
-    '''

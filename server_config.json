@@ -5,7 +5,7 @@
     },
     "postgresql" : {
         "postgresqlhost": "127.0.0.1",
-        "postgresqlport": "3306",
+        "postgresqlport": "5432",
         "username": "hlt_user",
         "password": "HLT_Server"
     }
