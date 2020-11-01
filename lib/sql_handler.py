@@ -4,7 +4,7 @@ import logging
 #+--------------------------------+
 #| Required external libraries    |
 #+--------------------------------+
-import postgresql
+#import postgresql
 
 #+--------------------------------------------------------------+
 #| postgresql Threaded Connection                                    |

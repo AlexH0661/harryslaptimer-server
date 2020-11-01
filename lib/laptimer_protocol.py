@@ -2,37 +2,54 @@ import json
 import threading
 import socket
 import logging
+import struct
+import binascii
+import codecs
 
-class laptimer():
+class message_handler():
     _timeout = 5
     NUMMESSAGETYPES = 25
     NUMLASTLAPTIMES = 10 # Number of laps used in MessageTimesLapped
     DEFAULTHALLOFFAMELIMIT = 200 # Number of laps used in MessageHallOfFame*
     MAXLIMITRESULTSETS = 2000 # Hard number applied to all hall of fame queries
 
-    def __init__(self, _ip, _port, data):
-        self.ip = _ip
-        self.port = _port
-        self.data = data
+    def __init__(self, msg):
+        self.data = binascii.hexlify(bytearray(msg))
+        print(self.data)
+        self.len_data = len(self.data) - 32
+        if self.len_data > 0:
+            self.msg = struct.unpack(f"> 8s  8s  8s  8s {self.len_data}s", self.data)
+        else:
+            self.msg = struct.unpack(f"> 8s  8s  8s  8s 32s 16s 16s 8s", self.data)
+        print(self.msg)
+        self.handleMessage()
+        self.closeClient()
 
-    def run (self):
-        self.creatorID = self.data[0:3]
-        self.sUID = self.data[4:7]
-        self.msgsize = self.data[8:11]
-        self.msgType = self.data[12:15]
+    def handleMessage (self):
+        self.creatorID = codecs.decode(self.msg[0], "hex")
+        self.sUID = codecs.decode(self.msg[1], "hex")
+        self.msgsize = self.msg[2]
+        self.msgType = self.msg[3]
         try:
-            self.uDID = self.data[16:31]
+            self.uDID = self.data[4]
             self.header_type = 'v2'
-            self.msgBody = self.data[32:]
+            self.msgBody = self.data[5]
+            print(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType} uDID: {self.uDID}')
             logging.debug(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType} uDID: {self.uDID}')
         except:
             self.header_type = 'v1'
             self.msgBody = self.data[16:]
+            print(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType}')
             logging.debug(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType}')
+        print(f'Header Type: {self.header_type}')
         logging.debug(f'Header Type: {self.header_type}')
-        self.msg = self.msgBody.decode('utf-8')
+        self.msg = self.msgBody
         if self.msg != '':
             logging.debug(self.msg)
+
+    def closeClient(self):
+        print('Closing connection')
+        exit(0)
     '''
     @staticmethod
     def GPSMessageType():

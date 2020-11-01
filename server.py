@@ -13,17 +13,17 @@ import sys
 #+--------------------------------+
 #| Required external libraries    |
 #+--------------------------------+
-from lib.laptimer_protocol import laptimer
+from lib.laptimer_protocol import message_handler
 from lib.sql_handler import postgresql_connection
 
 
 #+--------------------------------------------------------------+
 #| Setup logging                                                |
 #+--------------------------------------------------------------+
-os.makedirs(".\\logs", exist_ok=True)
+os.makedirs("logs", exist_ok=True)
 cur_date = (datetime.datetime.now()).strftime('%Y%m%d-%H%M%S')
 logging.basicConfig(level=logging.DEBUG,
-                    filename='.\\logs\\{0}-hlts_debug.log'.format(cur_date),
+                    filename='logs/{0}-hlts_debug.log'.format(cur_date),
                     filemode='w',
                     format='%(asctime)s [%(levelname)s / %(name)s / %(threadName)s]: %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
@@ -40,7 +40,7 @@ if args.verbose:
     console.setLevel(logging.DEBUG)
 
 #+--------------------------------------------------------------+
-#| Client Connection Threads                                    |
+#| Laptimer Server - Client Connection Threads                  |
 #+--------------------------------------------------------------+
 class ClientThread(threading.Thread):
     def __init__(self,clientAddress,clientsocket):
@@ -51,28 +51,12 @@ class ClientThread(threading.Thread):
     def run(self):
         logging.info("Connection from : {0}:{1}".format(self.ip[0], self.ip[1]))
         #self.csocket.send(bytes("Harry's Laptimer Server - V0.1\r\n",'utf-8'))
-        self.client = laptimer(self.ip[0], self.ip[1])
-        msg = ''
+        #self.client = laptimer(self.ip[0], self.ip[1])
+        #msg = ''
         while True:
             data = self.csocket.recv(2048)
             if data != b'':
-                creatorID = data[0:3]
-                sUID = data[4:7]
-                msgsize = data[8:11]
-                msgType = data[12:15]
-                try:
-                    uDID = data[16:31]
-                    header_type = 'v2'
-                    msgBody = data[32:]
-                    logging.debug(f'Creator ID: {creatorID} sUID: {sUID} size: {msgsize} msgType: {msgType} uDID: {uDID}')
-                except:
-                    header_type = 'v1'
-                    msgBody = data[16:]
-                    logging.debug(f'Creator ID: {creatorID} sUID: {sUID} size: {msgsize} msgType: {msgType}')
-                logging.debug(f'Header Type: {header_type}')
-            msg = msgBody.decode('utf-8')
-            if msg != '':
-                logging.debug(msg)
+                message_handler(data)
             #if str(msg) == 'exit':
             #    break
             #else:
@@ -122,9 +106,9 @@ def main():
         while True:
             user_input = input('To start the server [ENTER] or press [Q] and then press [ENTER] to quit: ')
             if user_input == "":
-                newthread = postgresql_connection(_postgresqlhost, _postgresqlport, _username, _password)
-                newthread.daemon = True
-                newthread.start()
+                #newthread = postgresql_connection(_postgresqlhost, _postgresqlport, _username, _password)
+                #newthread.daemon = True
+                #newthread.start()
                 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 server.bind((_host, int(_port)))
