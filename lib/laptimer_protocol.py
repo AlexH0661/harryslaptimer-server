@@ -1,10 +1,15 @@
+# Native Libraries
 import json
 import threading
 import socket
 import logging
 import struct
-import binascii
 import codecs
+import binascii
+import array
+
+# Third Party Libraries
+import numpy as np
 
 class message_handler():
     _timeout = 5
@@ -15,80 +20,103 @@ class message_handler():
 
     def __init__(self, msg):
         self.data = binascii.hexlify(bytearray(msg))
-        print(self.data)
-        self.len_data = len(self.data) - 32
-        if self.len_data > 0:
-            self.msg = struct.unpack(f"> 8s  8s  8s  8s {self.len_data}s", self.data)
-        else:
-            self.msg = struct.unpack(f"> 8s  8s  8s  8s 32s 16s 16s 8s", self.data)
-        print(self.msg)
+        try:
+            self.headers = struct.unpack("> 8s  8s  8s  8s 32s 16s 16s 8s", self.data[0:128])
+            self.msg_length = len(self.data) - 128
+            logging.debug(f'Message Length: {self.msg_length}')
+            self.msg = self.data[self.msg_length:]
+            print(f'Message: {self.msg}')
+            self.header_type = 'v2'
+        except:
+            self.headers = struct.unpack(f"> 8s  8s  8s  8s", self.data[0:32])
+            self.msg_length = len(self.data) - 32
+            logging.debug(f'Message Length: {self.msg_length}')
+            self.msg = self.data[self.msg_length:]
+            print(f'Message: {self.msg}')
+            self.header_type = 'v1'
+
+        logging.debug(f'Headers: {self.headers}')
         self.handleMessage()
-        self.closeClient()
 
     def handleMessage (self):
-        self.creatorID = codecs.decode(self.msg[0], "hex")
-        self.sUID = codecs.decode(self.msg[1], "hex")
-        self.msgsize = self.msg[2]
-        self.msgType = self.msg[3]
-        try:
-            self.uDID = self.data[4]
-            self.header_type = 'v2'
-            self.msgBody = self.data[5]
+        self.creatorID = codecs.decode(self.swapEndianness(self.headers[0]), "hex").decode('utf-8')
+        self.sUID = self.swapEndianness(self.headers[1]).decode()
+        self.msgsize =  np.int32(self.swapEndianness(self.headers[2]))
+        self.msgType =  np.int32(self.swapEndianness(self.headers[3]))
+
+        if self.header_type == 'v2':
+            self.uDID = np.int32(self.swapEndianness(self.headers[4]))
             print(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType} uDID: {self.uDID}')
             logging.debug(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType} uDID: {self.uDID}')
-        except:
-            self.header_type = 'v1'
-            self.msgBody = self.data[16:]
+
+        elif self.header_type == 'v1':
             print(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType}')
             logging.debug(f'Creator ID: {self.creatorID} sUID: {self.sUID} size: {self.msgsize} msgType: {self.msgType}')
-        print(f'Header Type: {self.header_type}')
-        logging.debug(f'Header Type: {self.header_type}')
-        self.msg = self.msgBody
-        if self.msg != '':
-            logging.debug(self.msg)
+
+        self.GPSMessageType()
+
+        #self.msg = self.msgBody
+        #if self.msg != '':
+            #logging.debug(self.msg)
+
+    def swapEndianness(self, swap_data):
+        if isinstance(swap_data, (bytes, bytearray)):
+            byteswapped = bytearray(len(swap_data))
+            byteswapped[0::8] = swap_data[6::8]
+            byteswapped[1::8] = swap_data[7::8]
+            byteswapped[2::8] = swap_data[4::8]
+            byteswapped[3::8] = swap_data[5::8]
+            byteswapped[4::8] = swap_data[2::8]
+            byteswapped[5::8] = swap_data[3::8]
+            byteswapped[6::8] = swap_data[0::8]
+            byteswapped[7::8] = swap_data[1::8]
+
+            return bytes(byteswapped)
+        else:
+            print('Data is not in bytes or bytearray format!')
+            return None
 
     def closeClient(self):
         print('Closing connection')
         exit(0)
-    '''
+
+    def GPSMessageType(self):
+        switcher = {
+            0: "MessageCurrentPosition",
+            1: "MessageTimeLapped",
+            2: "MessageRegisterForTrack",
+            3: "MessagePositions",
+            4: "MessageTimesLapped",
+            5: "MessageServerStatus",
+            6: "MessageAlertOnTrack",
+            7: "MessageRequestHallOfFame",
+            8: "MessageHallOfFame",
+            9: "MessageTimeLappedCertified",
+            10: "MessageRequestHallOfFameCertified",
+            11: "MessageHallOfFameCertified",
+            12: "MessageTimeLappedCertifiedV2",
+            13: "MessageRequestTracks",
+            14: "MessageTracks",
+            15: "MessageRequestTrackShape",
+            16: "MessageTrackShape",
+            17: "MessageSubmitChallenge",
+            18: "MessageRequestChallenges",
+            19: "MessageChallenges",
+            20: "MessageRequestChallenge",
+            21: "MessageChallenge",
+            22: "MessageDeleteChallenge",
+            23: "MessageRequestHallOfFameCertifiedV2",
+            24: "MessageDeleteTimeLapped"
+        }
+        print(f'Parsing message using: {switcher[self.msgType]}')
+        return switcher.get(self.msgType, lambda: "Invalid Message Type")
+
+    def MessageRegisterForTrack(self):
+        self.trackID: int = self.swapEndianness(self.msg)
+        print(f'User: {self.sUID} TrackID: {self.trackID}')
+
     @staticmethod
-    def GPSMessageType():
-        MessageCurrentPosition = 0 # Client > Server
-        MessageTimeLapped = 1 # Deprecated, Client > Server
-        MessageTimeLappedCertified = 9 # Deprecated, Client > Server, replaced MessageTimeLapped
-        MessageTimeLappedCertifiedV2 = 12 # Client > Server, replaced MessageTimeLappedCertified
-        MessageDeleteTimeLapped = 24 # Client > Server
-
-        MessageRegisterForTrack = 2 # Client > Server
-        MessagePositions = 3 # Server > Client (continous replies to MessageRegisterForTrack)
-        MessageTimesLapped = 4 # Server > Client (continous replies to MessageRegisterForTrack)
-        MessageServerStatus = 5 # Server > Client (continous replies to MessageRegisterForTrack)
-        MessageAlertOnTrack = 6 # Client > Server (submitting alert) AND
-        # Server > Client (broadcast by server on receive)
-
-        MessageRequestHallOfFame = 7 # Deprecated, Client > Server
-        MessageHallOfFame = 8 # Deprecated, Server > Client (reply to MessageRequestHallOfFame)
-        MessageRequestHallOfFameCertified = 10 # deprecated, Client > Server, replaced MessageRequestHallOfFame
-        MessageHallOfFameCertified = 11 # Server > Client
-        MessageRequestHallOfFameCertifiedV2 = 23 # Client > Server, replaced MessageRequestHallOfFameCertified
-
-        MessageRequestTracks = 13 # Client > Server
-        MessageTracks = 14 # Server > Client (reply to MessageRequestTracks)
-
-        MessageRequestTrackShape = 15 # Client > Server
-        MessageTrackShape = 16 # Server > Client (reply to MessageRequestTrackShape)
-
-        MessageSubmitChallenge = 17 # Client > Server
-
-        MessageRequestChallenges = 18 # Client > Server
-        MessageChallenges = 19 # Server > Client (reply to MessageRequestChallenges)
-
-        MessageRequestChallenge = 20 # Client > Server
-        MessageChallenge = 21 # Server > Client (reply to MessageRequestCallenge)
-        MessageDeleteChallenge = 22 # Client > Server
-
-    @staticmethod
-    def Coordinate2D():
+    def Coordinate2D(self):
         latitude: float = 0.0
         longitude: float = 0.0
 
@@ -123,10 +151,10 @@ class message_handler():
         marshaledVehicle: chr = "" # Variable size, vehicle has at least 1 byte!
     
     @staticmethod
-    def TrackType():
+    def TrackType(self):
         numDrivers: int = 0
         trackID: int = 0
-        position = Coordinate2D()
+        position = self.Coordinate2D()
         hasShape: bool = False
         trackname: chr = "" # Variable size, trackname hat at least 1 byte!
     
@@ -140,4 +168,3 @@ class message_handler():
         listed: bool = False
         fullnameAndVehicle: chr = "" # Variable size, fullnameAndVehicle are two zero
         # terminated c strings (both UTF8)
-    '''
